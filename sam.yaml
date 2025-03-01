@@ -1,0 +1,322 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'CIS AWS Foundations Benchmark v3.0 Compliance Checker - Evaluates AWS account configurations against security best practices'
+
+##########################################################################
+# Parameters
+##########################################################################
+Parameters:
+  ReportBucket:
+    Type: String
+    Default: 'cis-compliance-reports'
+    Description: S3 bucket to store compliance reports
+  
+  BackupBucket:
+    Type: String
+    Default: 'cis-compliance-backups'
+    Description: S3 bucket to store configuration backups before remediation
+  
+  LogLevel:
+    Type: String
+    Default: 'INFO'
+    AllowedValues: ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
+    Description: Log level for the Lambda function
+  
+  LambdaTimeout:
+    Type: Number
+    Default: 300
+    Description: Timeout for the Lambda function in seconds
+  
+  LambdaMemory:
+    Type: Number
+    Default: 256
+    Description: Memory allocation for the Lambda function in MB
+  
+  RetentionInDays:
+    Type: Number
+    Default: 30
+    Description: Number of days to retain CloudWatch logs
+
+##########################################################################
+# Resources
+##########################################################################
+Resources:
+  ##########################################################################
+  # S3 Buckets
+  ##########################################################################
+  ComplianceReportBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref ReportBucket
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+  
+  ConfigBackupBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref BackupBucket
+      AccessControl: Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+
+  ##########################################################################
+  # SNS Topic for Dead Letter Queue
+  ##########################################################################
+  ComplianceCheckerDLQTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: ComplianceCheckerDLQ
+      TopicName: ComplianceCheckerDLQ
+
+  ##########################################################################
+  # Lambda Function
+  ##########################################################################
+  ComplianceChecker:
+    Type: AWS::Serverless::Function
+    DependsOn: 
+      - ComplianceReportBucket
+      - ConfigBackupBucket
+    Properties:
+      FunctionName: CISComplianceChecker
+      Description: 'Evaluates AWS account compliance with CIS AWS Foundations Benchmark v3.0'
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      Timeout: !Ref LambdaTimeout
+      MemorySize: !Ref LambdaMemory
+      Tracing: Active
+      Environment:
+        Variables:
+          REPORT_BUCKET: !Ref ReportBucket
+          BACKUP_BUCKET: !Ref BackupBucket
+          LOG_LEVEL: !Ref LogLevel
+      Policies:
+        - Version: '2012-10-17'
+          Statement:
+            # Read-only permissions for compliance checking
+            - Effect: Allow
+              Action:
+                - 'iam:Get*'
+                - 'iam:List*'
+                - 'ec2:Describe*'
+                - 'cloudtrail:Describe*'
+                - 'cloudtrail:Get*'
+                - 'rds:Describe*'
+                - 'kms:Describe*'
+                - 'kms:List*'
+                - 'efs:Describe*'
+                - 'config:Describe*'
+              Resource: '*'
+            
+            # S3 permissions for report bucket
+            - Effect: Allow
+              Action:
+                - 's3:GetObject'
+                - 's3:ListBucket'
+                - 's3:PutObject'
+              Resource:
+                - !Sub 'arn:aws:s3:::${ReportBucket}'
+                - !Sub 'arn:aws:s3:::${ReportBucket}/*'
+            
+            # S3 permissions for backup bucket
+            - Effect: Allow
+              Action:
+                - 's3:GetObject'
+                - 's3:ListBucket'
+                - 's3:PutObject'
+              Resource:
+                - !Sub 'arn:aws:s3:::${BackupBucket}'
+                - !Sub 'arn:aws:s3:::${BackupBucket}/*'
+            
+            # Remediation permissions with more targeted resource scopes
+            - Effect: Allow
+              Action:
+                - 'iam:UpdateAccountPasswordPolicy'
+              Resource: '*'
+            
+            - Effect: Allow
+              Action:
+                - 'cloudtrail:UpdateTrail'
+              Resource: !Sub 'arn:aws:cloudtrail:*:${AWS::AccountId}:trail/*'
+            
+            - Effect: Allow
+              Action:
+                - 'kms:CreateKey'
+              Resource: '*'
+            
+            - Effect: Allow
+              Action:
+                - 'ec2:ModifyInstanceMetadataOptions'
+              Resource: !Sub 'arn:aws:ec2:*:${AWS::AccountId}:instance/*'
+            
+            - Effect: Allow
+              Action:
+                - 'rds:ModifyDBInstance'
+              Resource: !Sub 'arn:aws:rds:*:${AWS::AccountId}:db:*'
+            
+            - Effect: Allow
+              Action:
+                - 's3:PutPublicAccessBlock'
+              Resource: !Sub 'arn:aws:s3:::*'
+      
+      DeadLetterQueue:
+        Type: SNS
+        TargetArn: !Ref ComplianceCheckerDLQTopic
+      
+      Events:
+        Api:
+          Type: Api
+          Properties:
+            Path: /{proxy+}
+            Method: ANY
+        
+        # Schedule for regular compliance checks
+        DailyEvaluation:
+          Type: Schedule
+          Properties:
+            Schedule: 'cron(0 0 * * ? *)'
+            Description: 'Daily compliance check'
+            Enabled: true
+            Input: '{"action": "evaluate"}'
+
+  ##########################################################################
+  # CloudWatch Logs Configuration
+  ##########################################################################
+  ComplianceCheckerLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub '/aws/lambda/${ComplianceChecker}'
+      RetentionInDays: !Ref RetentionInDays
+
+  ##########################################################################
+  # CloudWatch Alarms
+  ##########################################################################
+  ComplianceCheckerErrorsAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: 'ComplianceCheckerErrors'
+      AlarmDescription: 'Alarm if the compliance checker lambda function has errors'
+      Namespace: 'AWS/Lambda'
+      MetricName: 'Errors'
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ComplianceChecker
+      Statistic: 'Sum'
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: 'GreaterThanOrEqualToThreshold'
+      TreatMissingData: 'notBreaching'
+      AlarmActions:
+        - !Ref ComplianceCheckerDLQTopic
+
+  ComplianceCheckerThrottlesAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: 'ComplianceCheckerThrottles'
+      AlarmDescription: 'Alarm if the compliance checker lambda function is throttled'
+      Namespace: 'AWS/Lambda'
+      MetricName: 'Throttles'
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref ComplianceChecker
+      Statistic: 'Sum'
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: 'GreaterThanOrEqualToThreshold'
+      TreatMissingData: 'notBreaching'
+      AlarmActions:
+        - !Ref ComplianceCheckerDLQTopic
+
+  ##########################################################################
+  # CloudWatch Dashboard
+  ##########################################################################
+  ComplianceCheckerDashboard:
+    Type: AWS::CloudWatch::Dashboard
+    Properties:
+      DashboardName: 'CIS-Compliance-Dashboard'
+      DashboardBody: !Sub |
+        {
+          "widgets": [
+            {
+              "type": "metric",
+              "x": 0,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Invocations", "FunctionName", "${ComplianceChecker}"],
+                  ["AWS/Lambda", "Errors", "FunctionName", "${ComplianceChecker}"],
+                  ["AWS/Lambda", "Throttles", "FunctionName", "${ComplianceChecker}"]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Lambda Metrics",
+                "period": 300
+              }
+            },
+            {
+              "type": "metric",
+              "x": 12,
+              "y": 0,
+              "width": 12,
+              "height": 6,
+              "properties": {
+                "metrics": [
+                  ["AWS/Lambda", "Duration", "FunctionName", "${ComplianceChecker}", {"stat": "Average"}],
+                  ["AWS/Lambda", "Duration", "FunctionName", "${ComplianceChecker}", {"stat": "Maximum"}]
+                ],
+                "view": "timeSeries",
+                "stacked": false,
+                "region": "${AWS::Region}",
+                "title": "Lambda Duration",
+                "period": 300
+              }
+            }
+          ]
+        }
+
+##########################################################################
+# Outputs
+##########################################################################
+Outputs:
+  ComplianceCheckerFunction:
+    Description: 'ARN of the compliance checker Lambda function'
+    Value: !GetAtt ComplianceChecker.Arn
+  
+  ApiEndpoint:
+    Description: 'API Gateway endpoint URL'
+    Value: !Sub 'https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/'
+  
+  ReportBucketName:
+    Description: 'Name of the S3 bucket for compliance reports'
+    Value: !Ref ReportBucket
+  
+  BackupBucketName:
+    Description: 'Name of the S3 bucket for configuration backups'
+    Value: !Ref BackupBucket
+  
+  DashboardURL:
+    Description: 'URL to the CloudWatch Dashboard'
+    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#dashboards:name=CIS-Compliance-Dashboard'

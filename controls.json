@@ -1,0 +1,261 @@
+{
+    "Account.1": {
+        "name": "Security Contact Info",
+        "description": "Ensure security contact information is registered for AWS account",
+        "severity": "medium",
+        "category": "Account Management",
+        "remediation_available": false
+    },
+    "CloudTrail.1": {
+        "name": "CloudTrail Enabled",
+        "description": "Ensure CloudTrail is enabled in all regions with appropriate event types",
+        "severity": "critical",
+        "category": "Logging & Monitoring",
+        "remediation_available": true
+    },
+    "CloudTrail.2": {
+        "name": "CloudTrail Encryption",
+        "description": "Ensure CloudTrail logs are encrypted at rest using KMS CMKs",
+        "severity": "high",
+        "category": "Encryption",
+        "remediation_available": true
+    },
+    "CloudTrail.4": {
+        "name": "CloudTrail Log Validation",
+        "description": "Ensure CloudTrail log file validation is enabled",
+        "severity": "medium",
+        "category": "Logging & Monitoring",
+        "remediation_available": true
+    },
+    "CloudTrail.7": {
+        "name": "CloudTrail S3 Logging",
+        "description": "Ensure CloudTrail logs are stored in S3 buckets with access logging enabled",
+        "severity": "medium",
+        "category": "Logging & Monitoring",
+        "remediation_available": true
+    },
+    "Config.1": {
+        "name": "AWS Config Enabled",
+        "description": "Ensure AWS Config is enabled in all regions",
+        "severity": "high",
+        "category": "Compliance",
+        "remediation_available": true
+    },
+    "EC2.2": {
+        "name": "VPC Default SG Rules",
+        "description": "Ensure default security groups restrict all traffic",
+        "severity": "medium",
+        "category": "Network Security",
+        "remediation_available": true
+    },
+    "EC2.6": {
+        "name": "VPC Flow Logging",
+        "description": "Ensure VPC flow logging is enabled in all VPCs",
+        "severity": "medium",
+        "category": "Logging & Monitoring",
+        "remediation_available": true
+    },
+    "EC2.7": {
+        "name": "EBS Default Encryption",
+        "description": "Ensure EBS volume encryption is enabled by default",
+        "severity": "high",
+        "category": "Encryption",
+        "remediation_available": true
+    },
+    "EC2.8": {
+        "name": "IMDSv2 Enabled",
+        "description": "Ensure EC2 instances use IMDSv2",
+        "severity": "high",
+        "category": "Compute Security",
+        "remediation_available": true
+    },
+    "EC2.21": {
+        "name": "NACL No Open Ports",
+        "description": "Ensure no Network ACLs allow ingress from 0.0.0.0/0 to administrative ports",
+        "severity": "high",
+        "category": "Network Security",
+        "remediation_available": true
+    },
+    "EC2.53": {
+        "name": "SG No Open Admin Ports IPv4",
+        "description": "Ensure no security groups allow ingress from 0.0.0.0/0 to administrative ports",
+        "severity": "critical",
+        "category": "Network Security",
+        "remediation_available": true
+    },
+    "EC2.54": {
+        "name": "SG No Open Admin Ports IPv6",
+        "description": "Ensure no security groups allow ingress from ::/0 to administrative ports",
+        "severity": "critical",
+        "category": "Network Security",
+        "remediation_available": true
+    },
+    "EFS.1": {
+        "name": "EFS Encryption",
+        "description": "Ensure EFS volumes are encrypted at rest",
+        "severity": "high",
+        "category": "Encryption",
+        "remediation_available": false
+    },
+    "IAM.2": {
+        "name": "IAM Users No Direct Policies",
+        "description": "Ensure IAM users do not have policies attached directly",
+        "severity": "medium",
+        "category": "Identity & Access",
+        "remediation_available": false
+    },
+    "IAM.3": {
+        "name": "IAM Key Rotation",
+        "description": "Ensure access keys are rotated every 90 days or less",
+        "severity": "medium",
+        "category": "Identity & Access",
+        "remediation_available": false
+    },
+    "IAM.4": {
+        "name": "No Root Access Keys",
+        "description": "Ensure no root account access key exists",
+        "severity": "critical",
+        "category": "Identity & Access",
+        "remediation_available": false
+    },
+    "IAM.5": {
+        "name": "MFA for Console Users",
+        "description": "Ensure MFA is enabled for all IAM users with console access",
+        "severity": "high",
+        "category": "Identity & Access",
+        "remediation_available": false
+    },
+    "IAM.6": {
+        "name": "Hardware MFA for Root",
+        "description": "Ensure hardware MFA is enabled for the root account",
+        "severity": "critical",
+        "category": "Identity & Access",
+        "remediation_available": false
+    },
+    "IAM.9": {
+        "name": "MFA for Root",
+        "description": "Ensure MFA is enabled for the root account",
+        "severity": "critical",
+        "category": "Identity & Access",
+        "remediation_available": false
+    },
+    "IAM.15": {
+        "name": "Password Policy Length",
+        "description": "Ensure IAM password policy requires minimum password length of 14 or greater",
+        "severity": "medium",
+        "category": "Identity & Access",
+        "remediation_available": true
+    },
+    "IAM.16": {
+        "name": "Password Policy Reuse",
+        "description": "Ensure IAM password policy prevents password reuse",
+        "severity": "medium",
+        "category": "Identity & Access",
+        "remediation_available": true
+    },
+    "IAM.18": {
+        "name": "Support Role Exists",
+        "description": "Ensure a support role has been created to manage AWS Support cases",
+        "severity": "low",
+        "category": "Identity & Access",
+        "remediation_available": true
+    },
+    "IAM.22": {
+        "name": "Remove Unused Credentials",
+        "description": "Ensure IAM users' credentials unused for 45 days or greater are disabled",
+        "severity": "medium",
+        "category": "Identity & Access",
+        "remediation_available": false
+    },
+    "IAM.26": {
+        "name": "Remove Expired Certificates",
+        "description": "Ensure expired SSL/TLS certificates stored in IAM are removed",
+        "severity": "medium",
+        "category": "Identity & Access",
+        "remediation_available": true
+    },
+    "IAM.27": {
+        "name": "No CloudShell Full Access",
+        "description": "Ensure IAM policies that allow full \"*:*\" administrative privileges are not created",
+        "severity": "high",
+        "category": "Identity & Access",
+        "remediation_available": false
+    },
+    "IAM.28": {
+        "name": "Access Analyzer Enabled",
+        "description": "Ensure IAM Access Analyzer is enabled for the account",
+        "severity": "medium",
+        "category": "Identity & Access",
+        "remediation_available": true
+    },
+    "KMS.4": {
+        "name": "KMS Key Rotation",
+        "description": "Ensure rotation for customer-created KMS keys is enabled",
+        "severity": "medium",
+        "category": "Encryption",
+        "remediation_available": true
+    },
+    "RDS.2": {
+        "name": "RDS No Public Access",
+        "description": "Ensure RDS instances are not publicly accessible",
+        "severity": "critical",
+        "category": "Database Security",
+        "remediation_available": true
+    },
+    "RDS.3": {
+        "name": "RDS Encryption",
+        "description": "Ensure RDS instances have encryption at rest enabled",
+        "severity": "high",
+        "category": "Encryption",
+        "remediation_available": false
+    },
+    "RDS.13": {
+        "name": "RDS Auto Upgrades",
+        "description": "Ensure RDS automatic minor version upgrades are enabled",
+        "severity": "medium",
+        "category": "Database Security",
+        "remediation_available": true
+    },
+    "S3.1": {
+        "name": "S3 Block Public Access",
+        "description": "Ensure S3 Block Public Access is enabled at the bucket level",
+        "severity": "critical",
+        "category": "Storage Security",
+        "remediation_available": true
+    },
+    "S3.5": {
+        "name": "S3 Require SSL",
+        "description": "Ensure S3 buckets require SSL for data in transit",
+        "severity": "high",
+        "category": "Encryption",
+        "remediation_available": true
+    },
+    "S3.8": {
+        "name": "S3 Block Public Access (Alt)",
+        "description": "Ensure S3 buckets block public access",
+        "severity": "critical",
+        "category": "Storage Security",
+        "remediation_available": true
+    },
+    "S3.20": {
+        "name": "S3 MFA Delete",
+        "description": "Ensure MFA Delete is enabled on S3 buckets with versioning",
+        "severity": "medium",
+        "category": "Storage Security",
+        "remediation_available": true
+    },
+    "S3.22": {
+        "name": "S3 Log Write Events",
+        "description": "Ensure CloudTrail logs S3 bucket write events",
+        "severity": "medium",
+        "category": "Logging & Monitoring",
+        "remediation_available": true
+    },
+    "S3.23": {
+        "name": "S3 Log Read Events",
+        "description": "Ensure CloudTrail logs S3 bucket read events",
+        "severity": "medium",
+        "category": "Logging & Monitoring",
+        "remediation_available": true
+    }
+}
