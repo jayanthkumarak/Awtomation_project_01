@@ -33,6 +33,17 @@ kms_client = boto3.client('kms', config=retry_config)
 efs_client = boto3.client('efs', config=retry_config)
 config_client = boto3.client('config', config=retry_config)
 
+# -------------------------------------------------------------------------
+# AI Assistance Acknowledgment
+# -------------------------------------------------------------------------
+# This Lambda function was developed with assistance from:
+# - Claude 3.7 Sonnet: Optimized code structure, error handling, and AWS service integration
+# - Grok 3: Contributed to security rule implementation and compliance logic
+# 
+# Together, these AI systems helped create a more robust, efficient, and
+# secure AWS compliance checking solution.
+# -------------------------------------------------------------------------
+
 # Load controls from S3
 def load_controls() -> Dict[str, Any]:
     """
@@ -135,37 +146,67 @@ def check_cloudtrail_enabled() -> Dict[str, Any]:
     Returns:
         Dict[str, Any]: Control check result containing status and remediation info
     """
+    # Constants for better readability
+    CONTROL_ID = 'CloudTrail.1'
+    VALID_READ_WRITE_TYPES = ['All', 'WriteOnly']
+    
+    # Helper function to create standardized response
+    def create_response(status: str, message: str, remediation_available: bool = True) -> Dict[str, Any]:
+        return {
+            'control': CONTROL_ID,
+            'status': status,
+            'message': message,
+            'remediation_available': remediation_available,
+            'remediation': 'Enable multi-region CloudTrail with read/write events' if remediation_available else ''
+        }
+    
+    # Helper function to check if trail has appropriate event selectors
+    def has_appropriate_event_selectors(trail_name: str) -> bool:
+        """
+        Check if a trail records the correct type of events.
+        
+        Args:
+            trail_name: Name of the CloudTrail trail to check
+            
+        Returns:
+            True if the trail has appropriate event selectors, False otherwise
+        """
+        try:
+            selectors = cloudtrail_client.get_event_selectors(TrailName=trail_name)['EventSelectors']
+            return any(selector['ReadWriteType'] in VALID_READ_WRITE_TYPES for selector in selectors)
+        except ClientError as e:
+            logger.warning(f"Failed to get event selectors for trail {trail_name}: {e}", exc_info=True)
+            return False
+    
     try:
+        # Get all trails
         trails = cloudtrail_client.describe_trails()['trailList']
-        multi_region = any(t.get('IsMultiRegionTrail') for t in trails)
         
-        # Check event selectors for each trail
-        events = False
-        for t in trails:
-            try:
-                selectors = cloudtrail_client.get_event_selectors(TrailName=t['Name'])['EventSelectors']
-                if any(s['ReadWriteType'] in ['All', 'WriteOnly'] for s in selectors):
-                    events = True
-                    break
-            except ClientError as e:
-                logger.warning(f"Failed to get event selectors for trail {t['Name']}: {e}", exc_info=True)
+        # Handle the case where no trails are found
+        if not trails:
+            return create_response('FAIL', "No CloudTrail trails found")
+            
+        # Check for trails with multi-region support enabled
+        # We use a more descriptive variable name in the list comprehension to improve readability
+        multi_region_trails = [each_trail for each_trail in trails if each_trail.get('IsMultiRegionTrail')]
+        has_multi_region = bool(multi_region_trails)
         
-        status = 'PASS' if multi_region and events else 'FAIL'
-        return {
-            'control': 'CloudTrail.1', 
-            'status': status, 
-            'message': f"Multi-region: {multi_region}, Events: {events}",
-            'remediation_available': True, 
-            'remediation': 'Enable multi-region CloudTrail with read/write events'
-        }
+        # Check if any trail has appropriate event recording settings
+        events_configured = any(has_appropriate_event_selectors(each_trail['Name']) for each_trail in trails)
+        
+        # Both conditions must be true for compliance
+        is_compliant = has_multi_region and events_configured
+        status = 'PASS' if is_compliant else 'FAIL'
+        
+        # Create detailed message about what was found
+        message = f"Multi-region: {has_multi_region}, Events: {events_configured}"
+        
+        return create_response(status, message)
+        
     except ClientError as e:
+        error_message = f"Failed to check: {str(e)}"
         logger.error(f"Error checking CloudTrail: {e}", exc_info=True)
-        return {
-            'control': 'CloudTrail.1', 
-            'status': 'ERROR', 
-            'message': f'Failed to check: {str(e)}', 
-            'remediation_available': False
-        }
+        return create_response('ERROR', error_message, False)
 
 def check_cloudtrail_encryption() -> Dict[str, Any]:
     """

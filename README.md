@@ -155,6 +155,21 @@ To add remediation for a new control:
 2. Implement the remediation logic with dry-run and confirmation params
 3. Update the IAM permissions in `sam.yaml` if needed
 
+## Acknowledgements
+
+- AWS for providing the serverless platform
+- Center for Internet Security for the CIS AWS Foundations Benchmark
+
+## AI Assistance Acknowledgments
+
+This project was developed with the invaluable assistance of advanced AI tools:
+
+- **Claude 3.7 Sonnet**: Powered the Cursor AI agent that helped optimize code architecture, refine implementations, debug issues, and restore the compliance dashboard components to their full functionality.
+
+- **Grok 3**: Contributed to the development of AWS resource evaluation logic and helped design efficient compliance checking algorithms.
+
+These AI assistants significantly accelerated development, improved code quality, and helped implement security best practices throughout the codebase.
+
 ## License
 
 MIT License
@@ -162,8 +177,3 @@ MIT License
 ## Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
-
-## Acknowledgements
-
-- AWS for providing the serverless platform
-- Center for Internet Security for the CIS AWS Foundations Benchmark

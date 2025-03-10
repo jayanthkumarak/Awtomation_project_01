@@ -135,3 +135,22 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - [React](https://reactjs.org/)
 - [Chart.js](https://www.chartjs.org/)
 - [Tailwind CSS](https://tailwindcss.com/) 
+
+## AI Assistance Acknowledgments
+
+The development of this dashboard was significantly enhanced by cutting-edge AI systems:
+
+- **Claude 3.7 Sonnet**: Through Cursor's agent mode, Claude provided extensive assistance with:
+  - Developing React component architecture
+  - Implementing Redux state management patterns
+  - Debugging complex UI interactions
+  - Restoring full functionality to dashboard components
+  - Optimizing frontend performance
+
+- **Grok 3**: Contributed valuable insights for:
+  - Data visualization strategies
+  - API integration patterns
+  - Responsive design implementation
+  - Accessibility improvements
+
+These AI assistants transformed the development process, enabling rapid iteration and helping to create a more robust, user-friendly compliance dashboard. 
