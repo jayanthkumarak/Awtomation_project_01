@@ -8,6 +8,7 @@ from jinja2 import Template
 from datetime import datetime, timezone
 from botocore.config import Config
 from botocore.exceptions import ClientError
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # Configure logging
 logger = logging.getLogger()
@@ -1151,44 +1152,85 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
         if action == 'evaluate':
             # Run all control checks
             logger.info("Starting compliance evaluation")
-            results = {}
-            for control_id in controls.keys():
-                function_name = f"check_{control_id.replace('.', '_').lower()}"
-                check_function = globals().get(function_name)
-                
-                if check_function:
+            results = []
+            futures = {}
+
+            # Fetch required AWS data in parallel first
+            # Determine which data is needed by the controls we intend to check
+            required_fetch_keys = set()
+            target_controls = controls.keys() # Or get from event if allowing targeted eval
+            # Simplified: fetch all data defined in FETCH_MAP for now
+            # Optimization: analyze CONTROL_CHECK_MAP to see which aws_data keys are actually used
+            logger.info("Fetching required AWS data...")
+            aws_data = get_aws_data(FETCH_MAP)
+            fetch_duration = time.time() - start_time
+            logger.info(f"AWS data fetching completed in {fetch_duration:.2f} seconds.")
+
+            # Execute checks in parallel
+            logger.info(f"Submitting {len(target_controls)} control checks for parallel execution...")
+            with ThreadPoolExecutor(max_workers=MAX_WORKERS) as executor:
+                for control_id in target_controls:
+                    check_function = CONTROL_CHECK_MAP.get(control_id)
+                    if check_function:
+                        # Submit the check function with the fetched aws_data
+                        futures[executor.submit(check_function, aws_data)] = control_id
+                    else:
+                        logger.warning(f"No check function implemented for {control_id}")
+                        results.append(create_standard_response(control_id, 'ERROR', 'Check function not implemented.'))
+
+                # Collect results as they complete
+                for future in as_completed(futures):
+                    control_id = futures[future]
                     try:
-                        results[control_id] = check_function()
-                        logger.info(f"Evaluated {control_id}: {results[control_id]['status']}")
+                        result = future.result()
+                        results.append(result)
+                        logger.debug(f"Completed check for {control_id}: {result.get('status')}")
                     except Exception as e:
-                        logger.error(f"Error evaluating {control_id}: {e}", exc_info=True)
-                        results[control_id] = {
-                            'control': control_id, 
-                            'status': 'ERROR', 
-                            'message': f'Exception: {str(e)}',
-                            'remediation_available': False
-                        }
-                else:
-                    logger.warning(f"No check function for {control_id}")
-                    results[control_id] = {
-                        'control': control_id, 
-                        'status': 'ERROR', 
-                        'message': 'Not implemented',
-                        'remediation_available': False
-                    }
-            
-            # Generate report
-            report_url = generate_html_report(results)
-            
+                        logger.error(f"Unexpected error executing check for {control_id}: {e}", exc_info=True)
+                        results.append(create_standard_response(control_id, 'ERROR', f"Check execution failed: {e}"))
+
+            # Generate HTML report
+            html_content, report_key = generate_html_report(results, controls)
+            report_url = ""
+            if html_content and report_key and REPORT_BUCKET:
+                try:
+                    s3_client.put_object(
+                        Bucket=REPORT_BUCKET,
+                        Key=report_key,
+                        Body=html_content,
+                        ContentType='text/html',
+                        Metadata={'cis-report-timestamp': datetime.now(timezone.utc).isoformat()}
+                    )
+                    logger.info(f"Successfully uploaded report to s3://{REPORT_BUCKET}/{report_key}")
+                    report_url = generate_presigned_url(REPORT_BUCKET, report_key)
+                except ClientError as e:
+                    logger.error(f"Failed to upload report to S3: {e}", exc_info=True)
+                except Exception as e:
+                     logger.error(f"Unexpected error uploading report: {e}", exc_info=True)
+
+            end_time = time.time()
+            duration = end_time - start_time
+            logger.info(f"Evaluation completed in {duration:.2f} seconds.")
+
+            # Return results (consider limits on response size for API Gateway/Lambda)
+            # Returning the full results list might exceed limits for large accounts.
+            # The report URL is often the primary output.
             return {
-                'statusCode': 200, 
+                'statusCode': 200,
                 'body': json.dumps({
-                    'timestamp': datetime.now(timezone.utc).isoformat(), 
-                    'results': results, 
-                    'report_url': report_url
-                })
+                    'status': 'Evaluation Complete',
+                    'timestamp': datetime.now(timezone.utc).isoformat(),
+                    'duration_seconds': round(duration, 2),
+                    'report_url': report_url,
+                    # Optionally include summary counts or truncated results here
+                    'summary': {
+                        status: sum(1 for r in results if r.get('status') == status)
+                        for status in ['PASS', 'FAIL', 'ERROR']
+                    }
+                    #'results': results # Be cautious about size
+                }, default=str) # Use default=str for datetime etc.
             }
-        
+
         elif action == 'remediate':
             # Validate remediation parameters
             control_id = event.get('control_id')
@@ -1196,7 +1238,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 logger.error("Missing control_id for remediation")
                 return {
                     'statusCode': 400, 
-                    'body': json.dumps({'error': 'Missing control_id for remediation'})
+                    'body': json.dumps({'error': "Missing control_id for remediation"})
                 }
             
             # Get the remediation function
@@ -1211,18 +1253,18 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 }
             
             # Run remediation
-            logger.info(f"Starting remediation for {control_id}")
+            logger.info(f"Executing remediation for {control_id}")
             result = remediate_function(
                 dry_run=event.get('dry_run', True),
                 confirm=event.get('confirm', False),
-                bucket_name=event.get('bucket_name')
+                **event.get('parameters', {})
             )
             
             return {
-                'statusCode': 200, 
+                'statusCode': 200,
                 'body': json.dumps(result)
             }
-    
+
     except Exception as e:
         logger.error(f"Unexpected error: {e}")
         return {
