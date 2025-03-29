@@ -10,10 +10,11 @@ This project implements an AWS Lambda-based solution for checking and remediatin
 
 ### Lambda Function (`aws_checker_in_lambda.py`)
 The core component that:
-- Evaluates compliance with CIS AWS Foundations Benchmark v3.0
-- Provides remediation capabilities for non-compliant resources
-- Generates HTML reports stored in S3
-- Has comprehensive error handling and logging
+- Evaluates compliance with CIS AWS Foundations Benchmark v3.0 using parallel execution for improved performance.
+- Fetches common AWS resource data efficiently to minimize redundant API calls.
+- Provides remediation capabilities for non-compliant resources.
+- Generates HTML reports stored in S3.
+- Has comprehensive error handling and logging.
 
 ### Control Definitions (`controls.json`)
 A JSON file that defines all the controls to check, including:
@@ -41,6 +42,8 @@ An AWS SAM template that provisions all required resources:
 - **Monitoring**: CloudWatch alarms for error alerting
 - **Visualization**: Dashboard for compliance status tracking
 - **Scheduled Execution**: Daily automated checks
+- **Performance Optimized**: Utilizes parallel processing and efficient data fetching to speed up evaluation, especially in large accounts.
+- **Unit Tested**: Core logic is verified using unit tests with `pytest` and `moto`.
 
 ## Prerequisites
 
@@ -144,9 +147,12 @@ The solution can remediate certain non-compliant resources, such as:
 
 ### Adding a New Control
 
-1. Update `controls.json` with the new control definition
-2. Add a new check function in `aws_checker_in_lambda.py`
-3. Optionally, add a remediation function if automatic remediation is possible
+1. Update `controls.json` with the new control definition.
+2. Add a new check function in `aws_checker_in_lambda.py` following the established pattern.
+3. If the check requires AWS data not already fetched, add a corresponding `fetch_*` function and update the `FETCH_MAP`.
+4. Register the new check function in the `CONTROL_CHECK_MAP`.
+5. Add corresponding unit tests for the new check function in the `tests/` directory.
+6. Optionally, add a remediation function if automatic remediation is possible.
 
 ### Extending Remediation
 
@@ -154,6 +160,25 @@ To add remediation for a new control:
 1. Create a function named `remediate_{control_id.lower().replace('.', '_')}`
 2. Implement the remediation logic with dry-run and confirmation params
 3. Update the IAM permissions in `sam.yaml` if needed
+
+## Testing
+
+This project uses `pytest` and `moto` for unit testing the Lambda function's logic without making actual calls to AWS.
+
+1.  **Install Test Dependencies**:
+    ```bash
+    # Make sure you are in the project root directory
+    pip3 install -r requirements.txt 
+    # Or, if you haven't generated requirements.txt yet:
+    # pip3 install pytest "moto[iam,s3,ec2,cloudtrail,rds,kms,efs,config,sts]"
+    ```
+
+2.  **Run Tests**:
+    From the project root directory:
+    ```bash
+    pytest
+    ```
+    `pytest` will automatically discover and run tests located in the `tests/` directory.
 
 ## Acknowledgements
 
@@ -163,6 +188,8 @@ To add remediation for a new control:
 ## AI Assistance Acknowledgments
 
 This project was developed with the invaluable assistance of advanced AI tools:
+
+- **Gemini 2.5 Pro (Cursor AI)**: Assisted with code refactoring for performance and maintainability, Git operations, unit test implementation, and documentation updates.
 
 - **Claude 3.7 Sonnet**: Powered the Cursor AI agent that helped optimize code architecture, refine implementations, debug issues, and restore the compliance dashboard components to their full functionality.
 

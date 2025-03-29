@@ -53,9 +53,12 @@ The Lambda function is the core of the compliance checking system, evaluating AW
 The Lambda function is defined in `aws_checker_in_lambda.py` and consists of:
 
 - A main `lambda_handler` function that processes incoming events
-- Control check functions that evaluate specific security controls
-- Remediation functions that can fix certain security issues
+- Control check functions (`check_*`) that evaluate specific security controls
+- Remediation functions (`remediate_*`) that can fix certain security issues
+- Data fetching functions (`fetch_*`) and a centralized cache (`invocation_cache`) to retrieve AWS resource data efficiently.
 - Utility functions for reporting and resource management
+- Parallel execution using `concurrent.futures.ThreadPoolExecutor` for checks and data fetching to improve performance.
+- Mappings (`FETCH_MAP`, `CONTROL_CHECK_MAP`) to dynamically manage data fetching and control execution.
 
 #### Lambda Handler
 
@@ -221,6 +224,33 @@ The Lambda function evaluates compliance across multiple AWS services:
 - **EFS**: Encryption settings
 - **Config**: Service enablement
 
+### Unit Testing
+
+The Lambda function's core logic is unit tested using `pytest` and the `moto` library to ensure individual components function correctly without interacting with live AWS resources.
+
+**Strategy:**
+
+-   **Mocking:** The `@mock_aws` decorator from `moto` is used on test functions. This intercepts AWS SDK (`boto3`) calls made by the code under test and redirects them to `moto`'s in-memory simulation of AWS services (like IAM, S3, CloudTrail).
+-   **Arrange-Act-Assert:** Tests follow the standard pattern:
+    -   **Arrange:** Set up the simulated AWS environment using `moto`'s capabilities (e.g., creating mock S3 buckets, IAM aliases, CloudTrail trails) to match the specific scenario being tested (e.g., a passing case, a failing case). Dummy AWS credentials are provided via environment variables as required by `moto`. Environment variables needed by the function (like `REPORT_BUCKET`) are mocked using `unittest.mock.patch`.
+    -   **Act:** Call the specific function from `aws_checker_in_lambda.py` being tested (e.g., `check_cloudtrail_enabled()`).
+    -   **Assert:** Use `assert` statements to verify that the function returned the expected output (e.g., correct status, message, control ID) given the arranged mock environment.
+-   **Isolation:** Each test runs in its own isolated mock environment, ensuring tests don't interfere with each other.
+
+**Running Tests:**
+
+1.  Ensure testing dependencies are installed:
+    ```bash
+    pip3 install -r requirements.txt 
+    # (or pip3 install pytest "moto[...]")
+    ```
+2.  Execute tests from the project root directory:
+    ```bash
+    pytest
+    ```
+
+This testing approach provides high confidence in the correctness of individual control checks and utility functions, facilitating safer refactoring and development.
+
 ---
 
 ## Compliance Dashboard
@@ -341,6 +371,7 @@ Planned future enhancements include:
 
 This project benefited from AI assistance from:
 
+- **Gemini 2.5 Pro (Cursor AI)**: Assisted with code refactoring for performance and maintainability, Git operations, unit test implementation, and documentation updates.
 - **Claude 3.7 Sonnet** - Helped optimize code structure, improve error handling, implement AWS service integration, and create documentation.
 - **Grok 3** - Contributed to security rule implementation and compliance logic development.
 
